@@ -6,7 +6,8 @@ const fetch = require('node-fetch');
 const FormData = require('form-data');
 
 const app = express();
-
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ limit: '100mb', extended: true }));
 // Allow cross-origin requests (if needed)
 app.use(cors());
 
