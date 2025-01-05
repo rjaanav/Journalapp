@@ -6,7 +6,7 @@ import * as FileSystem from 'expo-file-system';
 import { firestore, auth } from '../config/firebaseConfig';
 
 // Replace with your deployed backend URL
-const BACKEND_URL = 'https://YOUR_PROJECT_NAME.vercel.app/transcribe';
+const BACKEND_URL = 'https://soulscribe.vercel.app/';
 
 export default function BrainDumpScreen() {
   const [recording, setRecording] = useState(null);
