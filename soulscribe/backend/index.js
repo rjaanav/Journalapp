@@ -31,8 +31,8 @@ app.post('/transcribe', async (req, res) => {
     // ----- IMPORTANT: Specify filename & contentType (audio/m4a) -----
     const form = new FormData();
     form.append('file', audioBuffer, {
-      filename: 'audio.m4a',
-      contentType: 'audio/m4a',
+      filename: 'audio.wav',
+      contentType: 'audio/wav',
     });
 
     // (Optional) Add query params like punctuation, language, etc.

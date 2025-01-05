@@ -1,12 +1,36 @@
 // BrainDumpScreen.js
+
 import React, { useState, useEffect } from 'react';
 import { View, Text, Button } from 'react-native';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
-import { firestore, auth } from '../config/firebaseConfig'; // Adjust path if needed
+import { firestore, auth } from '../config/firebaseConfig';  // Adjust path if needed
 
-// Replace with your deployed or local backend endpoint
+// Replace with your backend endpoint
 const BACKEND_URL = 'https://soulscribe.vercel.app/transcribe';
+
+// Custom WAV Recording Options
+const RECORDING_OPTIONS_WAV = {
+  isMeteringEnabled: false,
+  android: {
+    extension: '.wav',
+    outputFormat: Audio.RECORDING_OPTION_ANDROID_OUTPUT_FORMAT_DEFAULT,
+    audioEncoder: Audio.RECORDING_OPTION_ANDROID_AUDIO_ENCODER_PCM_16BIT,
+    sampleRate: 44100,
+    numberOfChannels: 1,
+    bitRate: 128000,
+  },
+  ios: {
+    extension: '.wav',
+    audioQuality: Audio.RECORDING_OPTION_IOS_AUDIO_QUALITY_HIGH,
+    sampleRate: 44100,
+    numberOfChannels: 1,
+    bitRate: 128000,
+    linearPCMBitDepth: 16,
+    linearPCMIsBigEndian: false,
+    linearPCMIsFloat: false,
+  },
+};
 
 export default function BrainDumpScreen() {
   const [recording, setRecording] = useState(null);
@@ -15,7 +39,6 @@ export default function BrainDumpScreen() {
 
   useEffect(() => {
     return () => {
-      // Cleanup if the component unmounts
       if (recording) {
         recording.stopAndUnloadAsync();
       }
@@ -24,17 +47,13 @@ export default function BrainDumpScreen() {
 
   const startRecording = async () => {
     try {
-      // Request mic permissions
       await Audio.requestPermissionsAsync();
-      // Configure
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
       });
 
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RECORDING_OPTIONS_PRESET_HIGH_QUALITY
-      );
+      const { recording } = await Audio.Recording.createAsync(RECORDING_OPTIONS_WAV);
       setRecording(recording);
       setIsRecording(true);
     } catch (err) {
@@ -49,7 +68,7 @@ export default function BrainDumpScreen() {
       const uri = recording.getURI();
       console.log('Recording stored at', uri);
 
-      // Convert audio file to Base64
+      // Read file as base64
       const base64File = await FileSystem.readAsStringAsync(uri, {
         encoding: FileSystem.EncodingType.Base64,
       });
@@ -64,10 +83,9 @@ export default function BrainDumpScreen() {
       const data = await response.json();
       console.log('Transcription response:', data);
 
-      // Save to state
       setTranscript(data.transcript);
 
-      // Store in Firestore if we have a user and a valid transcript
+      // Save to Firestore if user is logged in
       const user = auth.currentUser;
       if (user && data.transcript) {
         await firestore.collection('journals').add({
@@ -75,14 +93,12 @@ export default function BrainDumpScreen() {
           transcript: data.transcript,
           createdAt: new Date(),
         });
-        console.log('Transcript saved to Firestore for user:', user.uid);
+        console.log('Transcript saved to Firestore');
       } else {
-        console.log(
-          'No user is logged in, or transcript is empty. Not saving to Firestore.'
-        );
+        console.log('No user or empty transcript, not saving.');
       }
 
-      // Reset the recording
+      // Reset
       setRecording(null);
     } catch (error) {
       console.error('stopRecording error:', error);
@@ -97,13 +113,15 @@ export default function BrainDumpScreen() {
 
   return (
     <View style={{ flex: 1, padding: 20, justifyContent: 'center' }}>
-      <Text style={{ marginBottom: 20, fontSize: 18 }}>Brain Dump</Text>
+      <Text style={{ marginBottom: 20, fontSize: 18 }}>Brain Dump (WAV)</Text>
 
       {!isRecording && !transcript && (
         <Button title="Start Recording" onPress={startRecording} />
       )}
 
-      {isRecording && <Button title="Stop Recording" onPress={stopRecording} />}
+      {isRecording && (
+        <Button title="Stop Recording" onPress={stopRecording} />
+      )}
 
       {transcript ? (
         <>
@@ -114,3 +132,4 @@ export default function BrainDumpScreen() {
     </View>
   );
 }
+
