@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, Button } from 'react-native';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
-import { firestore, auth } from '../config/firebaseConfig';  // Adjust import path if needed
+import { firestore, auth } from '../config/firebaseConfig'; // Adjust path if needed
 
 // Replace with your deployed or local backend endpoint
 const BACKEND_URL = 'https://soulscribe.vercel.app/transcribe';
@@ -14,8 +14,8 @@ export default function BrainDumpScreen() {
   const [isRecording, setIsRecording] = useState(false);
 
   useEffect(() => {
-    // Cleanup if the component unmounts while recording
     return () => {
+      // Cleanup if the component unmounts
       if (recording) {
         recording.stopAndUnloadAsync();
       }
@@ -24,9 +24,9 @@ export default function BrainDumpScreen() {
 
   const startRecording = async () => {
     try {
-      // Request microphone permissions
+      // Request mic permissions
       await Audio.requestPermissionsAsync();
-      // Configure the audio mode
+      // Configure
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
@@ -49,12 +49,12 @@ export default function BrainDumpScreen() {
       const uri = recording.getURI();
       console.log('Recording stored at', uri);
 
-      // Convert the audio file to Base64
+      // Convert audio file to Base64
       const base64File = await FileSystem.readAsStringAsync(uri, {
         encoding: FileSystem.EncodingType.Base64,
       });
 
-      // Send the audio to your backend for transcription
+      // Send to backend
       const response = await fetch(BACKEND_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -62,11 +62,14 @@ export default function BrainDumpScreen() {
       });
 
       const data = await response.json();
+      console.log('Transcription response:', data);
+
+      // Save to state
       setTranscript(data.transcript);
 
-      // ----- STORE TRANSCRIPT IN FIRESTORE WITH UID & TIMESTAMP -----
+      // Store in Firestore if we have a user and a valid transcript
       const user = auth.currentUser;
-      if (user) {
+      if (user && data.transcript) {
         await firestore.collection('journals').add({
           uid: user.uid,
           transcript: data.transcript,
@@ -74,11 +77,12 @@ export default function BrainDumpScreen() {
         });
         console.log('Transcript saved to Firestore for user:', user.uid);
       } else {
-        console.warn('No user is logged in. Not saving to Firestore.');
+        console.log(
+          'No user is logged in, or transcript is empty. Not saving to Firestore.'
+        );
       }
-      // -------------------------------------------------------------
 
-      // Reset the recording reference
+      // Reset the recording
       setRecording(null);
     } catch (error) {
       console.error('stopRecording error:', error);
@@ -99,16 +103,14 @@ export default function BrainDumpScreen() {
         <Button title="Start Recording" onPress={startRecording} />
       )}
 
-      {isRecording && (
-        <Button title="Stop Recording" onPress={stopRecording} />
-      )}
+      {isRecording && <Button title="Stop Recording" onPress={stopRecording} />}
 
-      {transcript !== '' && (
+      {transcript ? (
         <>
           <Text style={{ marginVertical: 20 }}>Transcript: {transcript}</Text>
           <Button title="Discard" onPress={discardRecording} />
         </>
-      )}
+      ) : null}
     </View>
   );
 }
