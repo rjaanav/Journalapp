@@ -1,72 +1,77 @@
-// index.js
-
+/******************************************************
+ * index.js (backend/index.js)
+ * Express server + Deepgram transcription route
+ ******************************************************/
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const fetch = require('node-fetch');
-const FormData = require('form-data');
+const morgan = require('morgan');
+const multer = require('multer');
+const { Deepgram } = require('@deepgram/sdk');
 
 const app = express();
+
+// 1. Middleware
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(morgan('dev'));
 
-// Replace with your real API key or environment variable
-const DEEPGRAM_API_KEY = '0bce5fa05fa969c3ac10bc19e600a3c06f586946';
+// 2. Initialize Deepgram
+const deepgram = new Deepgram(process.env.DEEPGRAM_API_KEY);
 
-app.get('/', (req, res) => {
-  res.send('Hello from the backend!');
+// 3. Configure multer for in-memory file storage
+const upload = multer({
+  storage: multer.memoryStorage(),
 });
 
-app.post('/transcribe', async (req, res) => {
+// 4. POST /transcribe route
+app.post('/transcribe', upload.single('audio'), async (req, res) => {
   try {
-    const { audioBase64 } = req.body;
-    if (!audioBase64) {
-      return res.status(400).json({ error: 'No audio data provided.' });
+    // Check if file is present
+    if (!req.file) {
+      return res.status(400).json({ error: 'No audio file uploaded' });
     }
 
-    // Convert base64 -> Buffer
-    const audioBuffer = Buffer.from(audioBase64, 'base64');
-    console.log('Audio buffer length:', audioBuffer.length);
+    // Log basic file info
+    console.log('Received file:', req.file.originalname, req.file.mimetype);
 
-    // ----- IMPORTANT: Specify filename & contentType (audio/m4a) -----
-    const form = new FormData();
-    form.append('file', audioBuffer, {
-      filename: 'audio.wav',
-      contentType: 'audio/wav',
-    });
+    // Get buffer and confirm it's not empty
+    const fileBuffer = req.file.buffer;
+    if (!fileBuffer || fileBuffer.length === 0) {
+      return res.status(400).json({ error: 'Uploaded audio is empty' });
+    }
 
-    // (Optional) Add query params like punctuation, language, etc.
-    // Example: ?punctuate=true&language=en
-    const deepgramUrl = 'https://api.deepgram.com/v1/listen?punctuate=true&language=en';
+    // Use the mimetype from the uploaded file, or default to 'audio/m4a'
+    const mimeType = req.file.mimetype || 'audio/m4a';
 
-    // Send to Deepgram
-    const deepgramResponse = await fetch(deepgramUrl, {
-      method: 'POST',
-      headers: {
-        Authorization: `Token ${DEEPGRAM_API_KEY}`,
+    // 5. Send audio to Deepgram
+    const deepgramResponse = await deepgram.transcription.preRecorded(
+      {
+        buffer: fileBuffer,
+        mimetype: mimeType,
       },
-      body: form,
-    });
+      {
+        punctuate: true,
+      }
+    );
 
-    // Log the raw JSON response from Deepgram
-    const result = await deepgramResponse.json();
-    console.log('Deepgram raw result:', JSON.stringify(result, null, 2));
+    // Log the entire Deepgram response for debugging
+    console.log('Deepgram response:', JSON.stringify(deepgramResponse, null, 2));
 
-    // Extract transcript
-    const transcript = result?.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
-    console.log('Transcript from Deepgram:', transcript);
+    // Extract transcript from the Deepgram response
+    const transcript =
+      deepgramResponse?.results?.channels[0]?.alternatives[0]?.transcript || '';
 
     return res.status(200).json({ transcript });
   } catch (error) {
-    console.error('Transcription error:', error);
-    return res.status(500).json({ error: 'Transcription failed' });
+    console.error('Transcription error:', error.response?.data || error.message);
+    return res
+      .status(500)
+      .json({ error: 'Transcription failed', details: error.message });
   }
 });
 
-const PORT = process.env.PORT || 3000;
+// 6. Listen on configured port
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
+  console.log(`Backend server listening on port ${PORT}`);
 });
-
-// index.js
-

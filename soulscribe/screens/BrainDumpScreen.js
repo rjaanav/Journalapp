@@ -3,13 +3,12 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Button } from 'react-native';
 import { Audio } from 'expo-av';
-import * as FileSystem from 'expo-file-system';
-import { firestore, auth } from '../config/firebaseConfig';  // Adjust path if needed
+import { firestore, auth } from '../config/firebaseConfig'; // Adjust path if needed
 
-// Replace with your backend endpoint
+// Adjust this if you're running locally or have a different backend URL
 const BACKEND_URL = 'https://soulscribe.vercel.app/transcribe';
 
-// Custom WAV Recording Options
+// WAV recording options (no change from your snippet)
 const RECORDING_OPTIONS_WAV = {
   isMeteringEnabled: false,
   android: {
@@ -65,19 +64,26 @@ export default function BrainDumpScreen() {
     try {
       setIsRecording(false);
       await recording.stopAndUnloadAsync();
+
+      // Get local file path (URI)
       const uri = recording.getURI();
       console.log('Recording stored at', uri);
 
-      // Read file as base64
-      const base64File = await FileSystem.readAsStringAsync(uri, {
-        encoding: FileSystem.EncodingType.Base64,
+      // Build FormData to upload the WAV file
+      const formData = new FormData();
+      formData.append('audio', {
+        uri,
+        type: 'audio/wav',
+        name: 'recording.wav',
       });
 
-      // Send to backend
+      // Send to your backend
       const response = await fetch(BACKEND_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ audioBase64: base64File }),
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        body: formData,
       });
 
       const data = await response.json();
@@ -125,11 +131,12 @@ export default function BrainDumpScreen() {
 
       {transcript ? (
         <>
-          <Text style={{ marginVertical: 20 }}>Transcript: {transcript}</Text>
+          <Text style={{ marginVertical: 20 }}>
+            Transcript: {transcript}
+          </Text>
           <Button title="Discard" onPress={discardRecording} />
         </>
       ) : null}
     </View>
   );
 }
-
